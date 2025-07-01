@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -265,181 +264,201 @@ const TimeTracker = () => {
 
   if (loading) {
     return (
-      <Card className="w-full max-w-2xl mx-auto">
+      <Card className="w-full max-w-2xl mx-auto border-gray-200 bg-white shadow-lg">
         <CardContent className="flex items-center justify-center p-8">
-          <div>Loading...</div>
+          <div className="text-gray-800">Loading...</div>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
-      <CardHeader>
-        <CardTitle className="text-2xl font-bold text-center">Excel Time Tracker</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Employee Name Searchable Dropdown */}
-        <div className="space-y-2">
-          <Label htmlFor="employeeName">Employee Name *</Label>
-          <DropdownMenu open={employeeDropdownOpen} onOpenChange={setEmployeeDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={employeeDropdownOpen}
-                className="w-full justify-between"
-              >
-                {formData.employeeName || "Select employee..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-full p-0">
-              <Command>
-                <CommandInput placeholder="Search employees..." />
-                <CommandList>
-                  <CommandEmpty>No employee found.</CommandEmpty>
-                  <CommandGroup>
-                    {employees.map((employee) => (
-                      <CommandItem
-                        key={employee.Name}
-                        value={employee.Name}
-                        onSelect={() => handleEmployeeSelection(employee.Name)}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            formData.employeeName === employee.Name ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {employee.Name}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Client Name Searchable Dropdown */}
-        <div className="space-y-2">
-          <Label htmlFor="clientName">Client Name *</Label>
-          <DropdownMenu open={clientDropdownOpen} onOpenChange={setClientDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={clientDropdownOpen}
-                className="w-full justify-between"
-              >
-                {formData.clientName || "Select client..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-full p-0">
-              <Command>
-                <CommandInput placeholder="Search clients..." />
-                <CommandList>
-                  <CommandEmpty>No client found.</CommandEmpty>
-                  <CommandGroup>
-                    {clients.map((client) => (
-                      <CommandItem
-                        key={client.Account}
-                        value={client.Account}
-                        onSelect={() => handleClientSelection(client.Account)}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            formData.clientName === client.Account ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {client.Account}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Task Dropdown */}
-        <div className="space-y-2">
-          <Label htmlFor="task">Task *</Label>
-          <Select value={formData.task} onValueChange={(value) => handleInputChange('task', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a task" />
-            </SelectTrigger>
-            <SelectContent>
-              {TASK_OPTIONS.map((task) => (
-                <SelectItem key={task} value={task}>
-                  {task}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* Hours Input */}
-        <div className="space-y-2">
-          <Label htmlFor="hours">Hours *</Label>
-          <Input
-            id="hours"
-            type="number"
-            step="0.1"
-            min="0"
-            value={formData.hours}
-            onChange={(e) => handleInputChange('hours', e.target.value)}
-            placeholder="Enter hours (e.g., 2.5)"
-          />
-        </div>
-
-        {/* Remarks */}
-        <div className="space-y-2">
-          <Label htmlFor="remarks">
-            Remarks {formData.task === 'Other Work - Any other please specify in Remarks Column' && '*'}
-          </Label>
-          <Textarea
-            id="remarks"
-            value={formData.remarks}
-            onChange={(e) => handleInputChange('remarks', e.target.value)}
-            placeholder="Optional comments..."
-            rows={3}
-          />
-        </div>
-
-        {/* Display derived values for reference */}
-        {(formData.employeeName || formData.clientName) && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-md">
-            <h4 className="font-medium mb-2">Auto-filled Information:</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {formData.employeeName && (
-                <>
-                  <div><strong>GPN:</strong> {derivedData.employeeGPN}</div>
-                  <div><strong>Designation:</strong> {derivedData.designation}</div>
-                  <div><strong>Vertical:</strong> {derivedData.vertical}</div>
-                </>
-              )}
-              {formData.clientName && (
-                <>
-                  <div><strong>Partner:</strong> {derivedData.partner}</div>
-                  <div><strong>CAD Manager:</strong> {derivedData.cadManager}</div>
-                  <div><strong>Complexity:</strong> {derivedData.complexity}</div>
-                  <div><strong>Location:</strong> {derivedData.location}</div>
-                </>
-              )}
-            </div>
+    <div className="relative">
+      {/* Logo positioned in top-right corner */}
+      <div className="absolute top-0 right-0 z-10">
+        <img 
+          src="/lovable-uploads/a718f1f2-6c65-4a5a-b57e-16ecd7498461.png" 
+          alt="EY Logo" 
+          className="w-16 h-16 object-contain"
+        />
+      </div>
+      
+      <Card className="w-full max-w-2xl mx-auto border-gray-200 bg-white shadow-lg">
+        <CardHeader className="bg-gray-50 border-b border-gray-200">
+          <CardTitle className="text-2xl font-bold text-center text-gray-900">
+            Employee TimeSheet
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 p-6">
+          {/* Employee Name Searchable Dropdown */}
+          <div className="space-y-2">
+            <Label htmlFor="employeeName" className="text-gray-900 font-medium">Employee Name *</Label>
+            <DropdownMenu open={employeeDropdownOpen} onOpenChange={setEmployeeDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={employeeDropdownOpen}
+                  className="w-full justify-between border-gray-300 hover:border-yellow-400 hover:bg-yellow-50 text-gray-900"
+                >
+                  {formData.employeeName || "Select employee..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-full p-0 bg-white border-gray-200 shadow-lg">
+                <Command>
+                  <CommandInput placeholder="Search employees..." className="text-gray-900" />
+                  <CommandList>
+                    <CommandEmpty className="text-gray-600">No employee found.</CommandEmpty>
+                    <CommandGroup>
+                      {employees.map((employee) => (
+                        <CommandItem
+                          key={employee.Name}
+                          value={employee.Name}
+                          onSelect={() => handleEmployeeSelection(employee.Name)}
+                          className="hover:bg-yellow-50 text-gray-900"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              formData.employeeName === employee.Name ? "opacity-100 text-yellow-600" : "opacity-0"
+                            )}
+                          />
+                          {employee.Name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-        )}
 
-        {/* Submit Button */}
-        <Button onClick={handleSubmit} className="w-full">
-          Submit Time Entry
-        </Button>
-      </CardContent>
-    </Card>
+          {/* Client Name Searchable Dropdown */}
+          <div className="space-y-2">
+            <Label htmlFor="clientName" className="text-gray-900 font-medium">Client Name *</Label>
+            <DropdownMenu open={clientDropdownOpen} onOpenChange={setClientDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={clientDropdownOpen}
+                  className="w-full justify-between border-gray-300 hover:border-yellow-400 hover:bg-yellow-50 text-gray-900"
+                >
+                  {formData.clientName || "Select client..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-full p-0 bg-white border-gray-200 shadow-lg">
+                <Command>
+                  <CommandInput placeholder="Search clients..." className="text-gray-900" />
+                  <CommandList>
+                    <CommandEmpty className="text-gray-600">No client found.</CommandEmpty>
+                    <CommandGroup>
+                      {clients.map((client) => (
+                        <CommandItem
+                          key={client.Account}
+                          value={client.Account}
+                          onSelect={() => handleClientSelection(client.Account)}
+                          className="hover:bg-yellow-50 text-gray-900"
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              formData.clientName === client.Account ? "opacity-100 text-yellow-600" : "opacity-0"
+                            )}
+                          />
+                          {client.Account}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Task Dropdown */}
+          <div className="space-y-2">
+            <Label htmlFor="task" className="text-gray-900 font-medium">Task *</Label>
+            <Select value={formData.task} onValueChange={(value) => handleInputChange('task', value)}>
+              <SelectTrigger className="border-gray-300 hover:border-yellow-400 text-gray-900">
+                <SelectValue placeholder="Select a task" />
+              </SelectTrigger>
+              <SelectContent className="bg-white border-gray-200">
+                {TASK_OPTIONS.map((task) => (
+                  <SelectItem key={task} value={task} className="hover:bg-yellow-50 text-gray-900">
+                    {task}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Hours Input */}
+          <div className="space-y-2">
+            <Label htmlFor="hours" className="text-gray-900 font-medium">Hours *</Label>
+            <Input
+              id="hours"
+              type="number"
+              step="0.1"
+              min="0"
+              value={formData.hours}
+              onChange={(e) => handleInputChange('hours', e.target.value)}
+              placeholder="Enter hours (e.g., 2.5)"
+              className="border-gray-300 focus:border-yellow-400 focus:ring-yellow-200 text-gray-900"
+            />
+          </div>
+
+          {/* Remarks */}
+          <div className="space-y-2">
+            <Label htmlFor="remarks" className="text-gray-900 font-medium">
+              Remarks {formData.task === 'Other Work - Any other please specify in Remarks Column' && '*'}
+            </Label>
+            <Textarea
+              id="remarks"
+              value={formData.remarks}
+              onChange={(e) => handleInputChange('remarks', e.target.value)}
+              placeholder="Optional comments..."
+              rows={3}
+              className="border-gray-300 focus:border-yellow-400 focus:ring-yellow-200 text-gray-900"
+            />
+          </div>
+
+          {/* Display derived values for reference */}
+          {(formData.employeeName || formData.clientName) && (
+            <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-md">
+              <h4 className="font-medium mb-2 text-gray-900">Auto-filled Information:</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm text-gray-800">
+                {formData.employeeName && (
+                  <>
+                    <div><strong>GPN:</strong> {derivedData.employeeGPN}</div>
+                    <div><strong>Designation:</strong> {derivedData.designation}</div>
+                    <div><strong>Vertical:</strong> {derivedData.vertical}</div>
+                  </>
+                )}
+                {formData.clientName && (
+                  <>
+                    <div><strong>Partner:</strong> {derivedData.partner}</div>
+                    <div><strong>CAD Manager:</strong> {derivedData.cadManager}</div>
+                    <div><strong>Complexity:</strong> {derivedData.complexity}</div>
+                    <div><strong>Location:</strong> {derivedData.location}</div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <Button 
+            onClick={handleSubmit} 
+            className="w-full bg-gray-900 hover:bg-gray-800 text-white border-2 border-transparent hover:border-yellow-400 transition-all duration-200"
+          >
+            Submit
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
