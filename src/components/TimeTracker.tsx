@@ -6,12 +6,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Check, ChevronsUpDown } from 'lucide-react';
+import { Check, ChevronsUpDown, Plus, Minus, CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { format } from 'date-fns';
 
 interface Employee {
   Name: string;
@@ -26,6 +29,14 @@ interface Client {
   'CAD Manager': string;
   Complexity: string;
   Location: string;
+}
+
+interface ClientRow {
+  id: string;
+  clientName: string;
+  task: string;
+  hours: string;
+  remarks: string;
 }
 
 const TASK_OPTIONS = [
@@ -48,24 +59,25 @@ const TimeTracker = () => {
   const { toast } = useToast();
   
   // Form state
-  const [formData, setFormData] = useState({
-    employeeName: '',
-    clientName: '',
-    task: '',
-    hours: '',
-    remarks: ''
-  });
+  const [employeeName, setEmployeeName] = useState('');
+  const [weekEnding, setWeekEnding] = useState<Date>();
+  const [clientRows, setClientRows] = useState<ClientRow[]>([
+    { id: '1', clientName: '', task: '', hours: '', remarks: '' }
+  ]);
 
   // Derived values from selections
-  const [derivedData, setDerivedData] = useState({
+  const [employeeData, setEmployeeData] = useState({
     employeeGPN: null as number | null,
     designation: '',
-    vertical: '',
-    partner: '',
-    cadManager: '',
-    complexity: '',
-    location: ''
+    vertical: ''
   });
+
+  const [clientData, setClientData] = useState<Record<string, {
+    partner: string;
+    cadManager: string;
+    complexity: string;
+    location: string;
+  }>>({});
 
   // Data state
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -74,7 +86,8 @@ const TimeTracker = () => {
 
   // Dropdown open states
   const [employeeDropdownOpen, setEmployeeDropdownOpen] = useState(false);
-  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const [clientDropdownOpen, setClientDropdownOpen] = useState<Record<string, boolean>>({});
+  const [weekEndingOpen, setWeekEndingOpen] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -129,58 +142,95 @@ const TimeTracker = () => {
     }
   };
 
-  const handleEmployeeSelection = (employeeName: string) => {
-    const selectedEmployee = employees.find(emp => emp.Name === employeeName);
+  const handleEmployeeSelection = (selectedEmployeeName: string) => {
+    const selectedEmployee = employees.find(emp => emp.Name === selectedEmployeeName);
     
-    setFormData(prev => ({ ...prev, employeeName }));
+    setEmployeeName(selectedEmployeeName);
     
     if (selectedEmployee) {
-      setDerivedData(prev => ({
-        ...prev,
+      setEmployeeData({
         employeeGPN: selectedEmployee.GPN,
         designation: selectedEmployee['Updated Designation'] || '',
         vertical: selectedEmployee.Manager || ''
-      }));
+      });
     }
     setEmployeeDropdownOpen(false);
   };
 
-  const handleClientSelection = (clientName: string) => {
+  const handleClientSelection = (rowId: string, clientName: string) => {
     const selectedClient = clients.find(client => client.Account === clientName);
     
-    setFormData(prev => ({ ...prev, clientName }));
+    // Update the specific row's client name
+    setClientRows(prev => prev.map(row => 
+      row.id === rowId ? { ...row, clientName } : row
+    ));
     
+    // Store client derived data
     if (selectedClient) {
-      setDerivedData(prev => ({
+      setClientData(prev => ({
         ...prev,
-        partner: selectedClient['BU Partner 2'] || '',
-        cadManager: selectedClient['CAD Manager'] || '',
-        complexity: selectedClient.Complexity || '',
-        location: selectedClient.Location || ''
+        [rowId]: {
+          partner: selectedClient['BU Partner 2'] || '',
+          cadManager: selectedClient['CAD Manager'] || '',
+          complexity: selectedClient.Complexity || '',
+          location: selectedClient.Location || ''
+        }
       }));
     }
-    setClientDropdownOpen(false);
+    
+    setClientDropdownOpen(prev => ({ ...prev, [rowId]: false }));
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const updateClientRow = (rowId: string, field: keyof ClientRow, value: string) => {
+    setClientRows(prev => prev.map(row => 
+      row.id === rowId ? { ...row, [field]: value } : row
+    ));
+  };
+
+  const addClientRow = () => {
+    const newId = Date.now().toString();
+    setClientRows(prev => [...prev, { 
+      id: newId, 
+      clientName: '', 
+      task: '', 
+      hours: '', 
+      remarks: '' 
+    }]);
+  };
+
+  const removeClientRow = () => {
+    if (clientRows.length > 1) {
+      const lastRowId = clientRows[clientRows.length - 1].id;
+      setClientRows(prev => prev.slice(0, -1));
+      
+      // Clean up client data for removed row
+      setClientData(prev => {
+        const newData = { ...prev };
+        delete newData[lastRowId];
+        return newData;
+      });
+    }
   };
 
   const validateForm = (): boolean => {
     const errors: string[] = [];
 
-    if (!formData.employeeName) errors.push('Employee name is required');
-    if (!formData.clientName) errors.push('Client name is required');
-    if (!formData.task) errors.push('Task is required');
+    if (!employeeName) errors.push('Employee name is required');
+    if (!weekEnding) errors.push('Week ending date is required');
     
-    const hours = parseFloat(formData.hours);
-    if (!formData.hours || isNaN(hours) || hours <= 0) {
-      errors.push('Hours must be a positive number');
-    }
+    clientRows.forEach((row, index) => {
+      if (!row.clientName) errors.push(`Client name is required for row ${index + 1}`);
+      if (!row.task) errors.push(`Task is required for row ${index + 1}`);
+      
+      const hours = parseFloat(row.hours);
+      if (!row.hours || isNaN(hours) || hours <= 0) {
+        errors.push(`Valid hours required for row ${index + 1}`);
+      }
 
-    if (formData.task === 'Other Work - Any other please specify in Remarks Column' && !formData.remarks.trim()) {
-      errors.push('Remarks are required when selecting "Other Work - Any other please specify in Remarks Column"');
-    }
+      if (row.task === 'Other Work - Any other please specify in Remarks Column' && !row.remarks.trim()) {
+        errors.push(`Remarks are required for "Other Work" in row ${index + 1}`);
+      }
+    });
 
     if (errors.length > 0) {
       toast({
@@ -198,26 +248,31 @@ const TimeTracker = () => {
     if (!validateForm()) return;
 
     try {
-      const timesheetEntry = {
-        'Employee Name': formData.employeeName,
-        'Employee GPN': derivedData.employeeGPN,
-        'Designation': derivedData.designation,
-        'Vertical': derivedData.vertical,
-        'Client Name': formData.clientName,
-        'Partner': derivedData.partner,
-        'CAD Manager': derivedData.cadManager,
-        'Complexity': derivedData.complexity,
-        'Location': derivedData.location,
-        'Task': formData.task,
-        'Hours': parseInt(formData.hours),
-        'Remarks': formData.remarks,
-        'Week Ending': new Date().toISOString().split('T')[0], // Current date
-        'Month': new Date().toLocaleString('default', { month: 'long', year: 'numeric' })
-      };
+      // Prepare bulk insert data
+      const timesheetEntries = clientRows.map(row => {
+        const rowClientData = clientData[row.id] || {};
+        
+        return {
+          'Employee Name': employeeName,
+          'Employee GPN': employeeData.employeeGPN,
+          'Designation': employeeData.designation,
+          'Vertical': employeeData.vertical,
+          'Client Name': row.clientName,
+          'Partner': rowClientData.partner,
+          'CAD Manager': rowClientData.cadManager,
+          'Complexity': rowClientData.complexity,
+          'Location': rowClientData.location,
+          'Task': row.task,
+          'Hours': parseInt(row.hours),
+          'Remarks': row.remarks,
+          'Week Ending': weekEnding!.toISOString().split('T')[0],
+          'Month': weekEnding!.toLocaleString('default', { month: 'long', year: 'numeric' })
+        };
+      });
 
       const { error } = await supabase
         .from('Timesheet')
-        .insert([timesheetEntry]);
+        .insert(timesheetEntries);
 
       if (error) {
         console.error('Error submitting timesheet:', error);
@@ -231,27 +286,15 @@ const TimeTracker = () => {
 
       toast({
         title: "Success",
-        description: "Time entry submitted successfully!",
+        description: `${clientRows.length} time entries submitted successfully!`,
       });
 
       // Reset form
-      setFormData({
-        employeeName: '',
-        clientName: '',
-        task: '',
-        hours: '',
-        remarks: ''
-      });
-
-      setDerivedData({
-        employeeGPN: null,
-        designation: '',
-        vertical: '',
-        partner: '',
-        cadManager: '',
-        complexity: '',
-        location: ''
-      });
+      setEmployeeName('');
+      setWeekEnding(undefined);
+      setClientRows([{ id: '1', clientName: '', task: '', hours: '', remarks: '' }]);
+      setEmployeeData({ employeeGPN: null, designation: '', vertical: '' });
+      setClientData({});
 
     } catch (error) {
       console.error('Error submitting timesheet:', error);
@@ -265,7 +308,7 @@ const TimeTracker = () => {
 
   if (loading) {
     return (
-      <Card className="w-full max-w-2xl mx-auto">
+      <Card className="w-full max-w-6xl mx-auto">
         <CardContent className="flex items-center justify-center p-8">
           <div>Loading...</div>
         </CardContent>
@@ -274,169 +317,248 @@ const TimeTracker = () => {
   }
 
   return (
-    <Card className="w-full max-w-2xl mx-auto">
+    <Card className="w-full max-w-6xl mx-auto">
       <CardHeader>
         <CardTitle className="text-2xl font-bold text-center">Excel Time Tracker</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Employee Name Searchable Dropdown */}
+      <CardContent className="space-y-6">
+        {/* Fixed Fields Row */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+          {/* Employee Name */}
+          <div className="space-y-2">
+            <Label htmlFor="employeeName">Employee Name *</Label>
+            <DropdownMenu open={employeeDropdownOpen} onOpenChange={setEmployeeDropdownOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={employeeDropdownOpen}
+                  className="w-full justify-between"
+                >
+                  {employeeName || "Select employee..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search employees..." />
+                  <CommandList>
+                    <CommandEmpty>No employee found.</CommandEmpty>
+                    <CommandGroup>
+                      {employees.map((employee) => (
+                        <CommandItem
+                          key={employee.Name}
+                          value={employee.Name}
+                          onSelect={() => handleEmployeeSelection(employee.Name)}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              employeeName === employee.Name ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {employee.Name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Week Ending */}
+          <div className="space-y-2">
+            <Label>Week Ending *</Label>
+            <Popover open={weekEndingOpen} onOpenChange={setWeekEndingOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !weekEnding && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {weekEnding ? format(weekEnding, "PPP") : <span>Pick a date</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={weekEnding}
+                  onSelect={(date) => {
+                    setWeekEnding(date);
+                    setWeekEndingOpen(false);
+                  }}
+                  disabled={(date) =>
+                    date < new Date("1980-01-01") || date > new Date("2050-12-31")
+                  }
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        {/* Column Headers */}
+        <div className="grid grid-cols-12 gap-2 p-2 bg-gray-100 rounded-lg font-semibold text-sm">
+          <div className="col-span-3">Client Name</div>
+          <div className="col-span-2">Task</div>
+          <div className="col-span-2">Hours</div>
+          <div className="col-span-4">Remarks</div>
+          <div className="col-span-1">Actions</div>
+        </div>
+
+        {/* Dynamic Client Rows */}
         <div className="space-y-2">
-          <Label htmlFor="employeeName">Employee Name *</Label>
-          <DropdownMenu open={employeeDropdownOpen} onOpenChange={setEmployeeDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={employeeDropdownOpen}
-                className="w-full justify-between"
-              >
-                {formData.employeeName || "Select employee..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-full p-0">
-              <Command>
-                <CommandInput placeholder="Search employees..." />
-                <CommandList>
-                  <CommandEmpty>No employee found.</CommandEmpty>
-                  <CommandGroup>
-                    {employees.map((employee) => (
-                      <CommandItem
-                        key={employee.Name}
-                        value={employee.Name}
-                        onSelect={() => handleEmployeeSelection(employee.Name)}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            formData.employeeName === employee.Name ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {employee.Name}
-                      </CommandItem>
+          {clientRows.map((row, index) => (
+            <div key={row.id} className="grid grid-cols-12 gap-2 p-2 border rounded-lg">
+              {/* Client Name */}
+              <div className="col-span-3">
+                <DropdownMenu 
+                  open={clientDropdownOpen[row.id] || false} 
+                  onOpenChange={(open) => setClientDropdownOpen(prev => ({ ...prev, [row.id]: open }))}
+                >
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="w-full justify-between text-sm"
+                    >
+                      {row.clientName || "Select client..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search clients..." />
+                      <CommandList>
+                        <CommandEmpty>No client found.</CommandEmpty>
+                        <CommandGroup>
+                          {clients.map((client) => (
+                            <CommandItem
+                              key={client.Account}
+                              value={client.Account}
+                              onSelect={() => handleClientSelection(row.id, client.Account)}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  row.clientName === client.Account ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {client.Account}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Task */}
+              <div className="col-span-2">
+                <Select value={row.task} onValueChange={(value) => updateClientRow(row.id, 'task', value)}>
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder="Select task" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TASK_OPTIONS.map((task) => (
+                      <SelectItem key={task} value={task} className="text-sm">
+                        {task}
+                      </SelectItem>
                     ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+                  </SelectContent>
+                </Select>
+              </div>
 
-        {/* Client Name Searchable Dropdown */}
-        <div className="space-y-2">
-          <Label htmlFor="clientName">Client Name *</Label>
-          <DropdownMenu open={clientDropdownOpen} onOpenChange={setClientDropdownOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={clientDropdownOpen}
-                className="w-full justify-between"
-              >
-                {formData.clientName || "Select client..."}
-                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-full p-0">
-              <Command>
-                <CommandInput placeholder="Search clients..." />
-                <CommandList>
-                  <CommandEmpty>No client found.</CommandEmpty>
-                  <CommandGroup>
-                    {clients.map((client) => (
-                      <CommandItem
-                        key={client.Account}
-                        value={client.Account}
-                        onSelect={() => handleClientSelection(client.Account)}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            formData.clientName === client.Account ? "opacity-100" : "opacity-0"
-                          )}
-                        />
-                        {client.Account}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+              {/* Hours */}
+              <div className="col-span-2">
+                <Input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={row.hours}
+                  onChange={(e) => updateClientRow(row.id, 'hours', e.target.value)}
+                  placeholder="Hours"
+                  className="text-sm"
+                />
+              </div>
 
-        {/* Task Dropdown */}
-        <div className="space-y-2">
-          <Label htmlFor="task">Task *</Label>
-          <Select value={formData.task} onValueChange={(value) => handleInputChange('task', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a task" />
-            </SelectTrigger>
-            <SelectContent>
-              {TASK_OPTIONS.map((task) => (
-                <SelectItem key={task} value={task}>
-                  {task}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+              {/* Remarks */}
+              <div className="col-span-4">
+                <Textarea
+                  value={row.remarks}
+                  onChange={(e) => updateClientRow(row.id, 'remarks', e.target.value)}
+                  placeholder="Optional comments..."
+                  className="text-sm min-h-[40px]"
+                  rows={1}
+                />
+              </div>
 
-        {/* Hours Input */}
-        <div className="space-y-2">
-          <Label htmlFor="hours">Hours *</Label>
-          <Input
-            id="hours"
-            type="number"
-            step="0.1"
-            min="0"
-            value={formData.hours}
-            onChange={(e) => handleInputChange('hours', e.target.value)}
-            placeholder="Enter hours (e.g., 2.5)"
-          />
-        </div>
-
-        {/* Remarks */}
-        <div className="space-y-2">
-          <Label htmlFor="remarks">
-            Remarks {formData.task === 'Other Work - Any other please specify in Remarks Column' && '*'}
-          </Label>
-          <Textarea
-            id="remarks"
-            value={formData.remarks}
-            onChange={(e) => handleInputChange('remarks', e.target.value)}
-            placeholder="Optional comments..."
-            rows={3}
-          />
+              {/* Actions */}
+              <div className="col-span-1 flex gap-1">
+                {index === 0 && (
+                  <Button
+                    onClick={addClientRow}
+                    size="sm"
+                    variant="outline"
+                    className="h-8 w-8 p-0"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                )}
+                {index === clientRows.length - 1 && clientRows.length > 1 && (
+                  <Button
+                    onClick={removeClientRow}
+                    size="sm"
+                    variant="outline"
+                    className="h-8 w-8 p-0"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Display derived values for reference */}
-        {(formData.employeeName || formData.clientName) && (
+        {(employeeName || clientRows.some(row => row.clientName)) && (
           <div className="mt-4 p-4 bg-gray-50 rounded-md">
             <h4 className="font-medium mb-2">Auto-filled Information:</h4>
-            <div className="grid grid-cols-2 gap-2 text-sm">
-              {formData.employeeName && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+              {employeeName && (
                 <>
-                  <div><strong>GPN:</strong> {derivedData.employeeGPN}</div>
-                  <div><strong>Designation:</strong> {derivedData.designation}</div>
-                  <div><strong>Vertical:</strong> {derivedData.vertical}</div>
+                  <div><strong>GPN:</strong> {employeeData.employeeGPN}</div>
+                  <div><strong>Designation:</strong> {employeeData.designation}</div>
+                  <div><strong>Vertical:</strong> {employeeData.vertical}</div>
                 </>
               )}
-              {formData.clientName && (
-                <>
-                  <div><strong>Partner:</strong> {derivedData.partner}</div>
-                  <div><strong>CAD Manager:</strong> {derivedData.cadManager}</div>
-                  <div><strong>Complexity:</strong> {derivedData.complexity}</div>
-                  <div><strong>Location:</strong> {derivedData.location}</div>
-                </>
-              )}
+              {Object.entries(clientData).map(([rowId, data]) => {
+                const row = clientRows.find(r => r.id === rowId);
+                return row?.clientName ? (
+                  <div key={rowId} className="col-span-full">
+                    <div className="font-medium">{row.clientName}:</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-1 text-xs mt-1">
+                      <div><strong>Partner:</strong> {data.partner}</div>
+                      <div><strong>CAD Manager:</strong> {data.cadManager}</div>
+                      <div><strong>Complexity:</strong> {data.complexity}</div>
+                      <div><strong>Location:</strong> {data.location}</div>
+                    </div>
+                  </div>
+                ) : null;
+              })}
             </div>
           </div>
         )}
 
         {/* Submit Button */}
-        <Button onClick={handleSubmit} className="w-full">
-          Submit Time Entry
+        <Button onClick={handleSubmit} className="w-full" size="lg">
+          Submit {clientRows.length} Time {clientRows.length === 1 ? 'Entry' : 'Entries'}
         </Button>
       </CardContent>
     </Card>
